@@ -1,0 +1,8 @@
+services:
+  db:
+    build: ./sqlserver
+    ports:
+      - 2320:1433
+      #  api:
+      #    build:
+      #      dockerfile: ./backend/dockerfile
