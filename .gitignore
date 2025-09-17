@@ -1,0 +1,65 @@
+## Build results
+bin/
+obj/
+out/
+*.dll
+*.exe
+*.log
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## ASP.NET temporary files
+App_Data/
+App_Start/
+_ReSharper*/
+*.DotSettings.user
+
+## Others
+*.cache
+*.pdb
+*.mdb
+
+## Publish files
+*.Publish.xml
+*.pubxml
+*.publishproj
+
+## NuGet
+*.nupkg
+packages/
+*.snupkg
+
+## Entity Framework
+Migrations/
+
+## Rider IDE
+.idea/
+
+## Node.js (nếu bạn dùng frontend trong Web API project)
+node_modules/
+
+## Environment settings
+.env
+.env.*
+
+## OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac
+.DS_Store
+
+# Linux
+*~
+
+# Logs
+*.log
+
+# Test results
+TestResults/
