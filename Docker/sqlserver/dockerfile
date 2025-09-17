@@ -1,0 +1,16 @@
+FROM mcr.microsoft.com/mssql/server:2017-latest
+
+ENV ACCEPT_EULA=Y
+ENV MSSQL_SA_PASSWORD=PRN232@chap4
+ENV MSSQL_TCP_PORT=1433
+
+WORKDIR /data
+
+COPY backup.bak /data/backup/PRN232_Chap4.bak 
+RUN chmod +r /data/backup/PRN232_Chap4.bak
+
+RUN (/opt/mssql/bin/sqlservr --accept-eula &) | grep -q "Service Broker manager has started" && \
+    /opt/mssql-tools/bin/sqlcmd -S127.0.0.1 -Usa -PPRN232@chap4 -d master \
+    -Q "RESTORE DATABASE PRN232_Chap4 FROM DISK='/data/backup/PRN232_Chap4.bak' WITH MOVE 'PRN232_Chap4' TO '/var/opt/mssql/data/PRN232_Chap4.mdf', MOVE 'PRN232_Chap4_log' TO '/var/opt/mssql/data/PRN232_Chap4_log.ldf', REPLACE" -C
+# -i db.sql -C
+
