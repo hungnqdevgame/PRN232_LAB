@@ -3,3 +3,8 @@ services:
     build: ./sqlserver
     ports:
       - 2320:1433
+
+  backend:
+    build: ../Backend
+    ports:
+      - 6000:8080
