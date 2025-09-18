@@ -3,10 +3,14 @@ using Microsoft.AspNetCore.OData;
 using Microsoft.OData.ModelBuilder;
 using Microsoft.OpenApi.Models;
 using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
+
 var ODataConventionModel = new ODataConventionModelBuilder();
+
 ODataConventionModel.EntitySet<Case>("Cases");
 ODataConventionModel.EntitySet<Region>("Regions");
+
 var edmModel = ODataConventionModel.GetEdmModel();
 
 // CORS: Cho phép mọi origin (hoặc chỉnh sửa cho domain frontend)
@@ -47,8 +51,13 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+
 app.UseHttpsRedirection();
-app.UseAuthorization();
+
 app.UseRouting();
-app.UseEndpoints(endpoints => endpoints.MapControllers());
+
+app.MapControllers();
+
+app.UseAuthorization();
+
 app.Run();
