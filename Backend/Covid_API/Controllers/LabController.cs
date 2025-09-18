@@ -18,9 +18,16 @@ namespace Covid_API.Controllers
 
         [HttpGet]
         [EnableQuery]
-        public IQueryable<Case> Get()
+        public IQueryable<Region> Get()
         {
-            return dbContext.Cases.ToList().AsQueryable();
+            return dbContext.Regions.ToList().AsQueryable();
+        }
+
+        [HttpGet("cases")]
+        [EnableQuery]
+        public IQueryable<Case> GetCases(DateOnly date)
+        {
+            return dbContext.Cases.Where(data => data.RecordedDate == date).AsQueryable<Case>();
         }
     }
 }
