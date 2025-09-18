@@ -11,7 +11,7 @@ public class CasesController : ODataController
         _dbContext = context;
     }
 
-    [EnableQuery(PageSize = 100, MaxTop = 250)]
+    [EnableQuery(PageSize = 64000)]
     public IQueryable<Case> Get()
     {
         return _dbContext.Cases;

@@ -28,7 +28,7 @@ builder.Services.AddDbContext<PRN232Context>(option =>
 });
 
 builder.Services.AddControllers().AddOData(
-    options => options.Select().Filter().OrderBy().Expand().Count().SetMaxTop(100).AddRouteComponents(
+    options => options.Select().Filter().OrderBy().Expand().Count().SetMaxTop(64000).AddRouteComponents(
         "odata",
         edmModel));
 

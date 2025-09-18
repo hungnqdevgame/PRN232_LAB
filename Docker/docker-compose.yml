@@ -3,3 +3,15 @@ services:
     build: ./sqlserver
     ports:
       - 2320:1433
+  
+  backend:
+    build: ../Backend
+    ports:
+      - 6000:8080
+
+  frontend:
+    build: ../Frontend/covid-dashboard
+    ports:
+      - 7000:7000
+    depends_on:
+      - backend

@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   // Development settings
-  BASE_URL: "http://localhost:5062/odata",
+  BASE_URL: "https://localhost:8080/odata",
   USE_MOCK_DATA: false, // Set to true to use mock data instead of API
   ENABLE_CORS_PROXY: false, // Set to true to use CORS proxy in development
 
@@ -11,8 +11,14 @@ export const API_CONFIG = {
   // CORS Proxy URL (for development only)
   CORS_PROXY: "https://cors-anywhere.herokuapp.com/",
 
-  // Request timeout
-  TIMEOUT: 10000, // 10 seconds
+  // Request timeout - increased for batch processing
+  TIMEOUT: 30000, // 30 seconds per batch request
+
+  // Batch processing settings
+  BATCH_SIZE: 64000, // Records per batch (reduced from 64000 for better concurrency)
+  BATCH_DELAY: 50, // Milliseconds delay between batches (legacy, now used for chunk delays)
+  MAX_CONCURRENT_REQUESTS: 8, // Maximum concurrent batch requests
+  CHUNK_DELAY: 50, // Delay between concurrent chunks (milliseconds)
 };
 
 // Helper to get the correct API URL

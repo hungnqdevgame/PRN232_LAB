@@ -32,20 +32,7 @@ const apiCall = async (endpoint) => {
     }
 
     const data = await response.json();
-
-    // Handle OData response format - extract the 'value' array
-    if (data && typeof data === "object" && Array.isArray(data.value)) {
-      console.log("OData response received:", data);
-      return data.value; // Return the actual data array
-    }
-
-    // If it's already an array, return as is
-    if (Array.isArray(data)) {
-      return data;
-    }
-
-    // For single object responses, wrap in array
-    return [data];
+    return data;
   } catch (error) {
     console.error("API call failed:", error);
 
@@ -65,56 +52,251 @@ const apiCall = async (endpoint) => {
   }
 };
 
-// Get all cases with region information
+// Get all cases with region information using optimized batch processing with concurrent requests
 export const getAllCases = async () => {
-  return await apiCall("/Cases?$expand=Region");
+  const startTime = performance.now();
+
+  try {
+    // Step 1: Get total count of cases
+    const countUrl = getApiUrl("/Cases/$count");
+    console.log("🔢 Getting total count from:", countUrl);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+
+    const countResponse = await fetch(countUrl, {
+      method: "GET",
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/plain", // OData $count returns plain text
+      },
+      credentials: "omit",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!countResponse.ok) {
+      throw new Error(`Failed to get count: ${countResponse.status}`);
+    }
+
+    const totalCount = parseInt(await countResponse.text());
+    console.log(`📊 Total cases count: ${totalCount}`);
+
+    if (totalCount === 0) {
+      return { value: [] };
+    }
+
+    // Step 2: Fetch data in batches using concurrent processing
+    const BATCH_SIZE = API_CONFIG.BATCH_SIZE || 4000;
+    const MAX_CONCURRENT_REQUESTS = API_CONFIG.MAX_CONCURRENT_REQUESTS || 5;
+    const CHUNK_DELAY = API_CONFIG.CHUNK_DELAY || 200;
+    const totalBatches = Math.ceil(totalCount / BATCH_SIZE);
+
+    console.log(
+      `� Processing ${totalBatches} batches of ${BATCH_SIZE} records each with concurrent requests`
+    );
+
+    // Create batch fetch function
+    const fetchBatch = async (batchIndex) => {
+      const skip = batchIndex * BATCH_SIZE;
+      const top = Math.min(BATCH_SIZE, totalCount - skip);
+
+      console.log(
+        `📦 Starting batch ${
+          batchIndex + 1
+        }/${totalBatches} (skip: ${skip}, top: ${top})`
+      );
+
+      try {
+        const batchData = await apiCall(
+          `/Cases?$expand=Region&$skip=${skip}&$top=${top}&$orderby=Id`
+        );
+
+        if (batchData && batchData.value && Array.isArray(batchData.value)) {
+          console.log(
+            `✅ Batch ${batchIndex + 1} completed: ${
+              batchData.value.length
+            } records`
+          );
+          return {
+            batchIndex,
+            data: batchData.value,
+            success: true,
+          };
+        } else {
+          console.warn(
+            `⚠️ Batch ${batchIndex + 1} returned invalid data:`,
+            batchData
+          );
+          return {
+            batchIndex,
+            data: [],
+            success: false,
+          };
+        }
+      } catch (error) {
+        console.error(`❌ Batch ${batchIndex + 1} failed:`, error);
+        return {
+          batchIndex,
+          data: [],
+          success: false,
+          error: error.message,
+        };
+      }
+    };
+
+    // Process batches in parallel with controlled concurrency
+    const allCases = [];
+    const results = [];
+
+    // Process batches in chunks to control concurrency
+    for (let i = 0; i < totalBatches; i += MAX_CONCURRENT_REQUESTS) {
+      const batchPromises = [];
+      const endIndex = Math.min(i + MAX_CONCURRENT_REQUESTS, totalBatches);
+
+      // Create promises for current chunk
+      for (let j = i; j < endIndex; j++) {
+        batchPromises.push(fetchBatch(j));
+      }
+
+      console.log(
+        `🔄 Processing concurrent batch chunk: ${
+          i + 1
+        }-${endIndex} of ${totalBatches}`
+      );
+
+      // Wait for all batches in current chunk to complete
+      const chunkResults = await Promise.allSettled(batchPromises);
+
+      // Process results
+      chunkResults.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          const batchResult = result.value;
+          results.push(batchResult);
+
+          if (batchResult.success) {
+            allCases.push(...batchResult.data);
+          }
+        } else {
+          console.error(
+            `❌ Promise rejected for batch ${i + index + 1}:`,
+            result.reason
+          );
+          results.push({
+            batchIndex: i + index,
+            data: [],
+            success: false,
+            error: result.reason?.message || "Promise rejected",
+          });
+        }
+      });
+
+      // Progress update
+      const completedBatches = Math.min(endIndex, totalBatches);
+      const progress = Math.round((completedBatches / totalBatches) * 100);
+      console.log(
+        `📈 Progress: ${completedBatches}/${totalBatches} batches completed (${progress}%) - ${allCases.length} records fetched`
+      );
+
+      // Add small delay between chunks to be respectful to server
+      if (endIndex < totalBatches) {
+        await new Promise((resolve) => setTimeout(resolve, CHUNK_DELAY));
+      }
+    }
+
+    // Sort results by batch index to maintain order
+    results.sort((a, b) => a.batchIndex - b.batchIndex);
+
+    // Report final statistics
+    const successfulBatches = results.filter((r) => r.success).length;
+    const failedBatches = results.filter((r) => !r.success).length;
+
+    console.log(`🎉 Batch processing completed!`);
+    console.log(`✅ Successful batches: ${successfulBatches}/${totalBatches}`);
+    console.log(`❌ Failed batches: ${failedBatches}/${totalBatches}`);
+    console.log(`📊 Total records fetched: ${allCases.length}/${totalCount}`);
+
+    if (failedBatches > 0) {
+      console.warn(`⚠️ Some batches failed. Data may be incomplete.`);
+      const failedBatchIndexes = results
+        .filter((r) => !r.success)
+        .map((r) => r.batchIndex + 1);
+      console.warn(`Failed batch numbers: ${failedBatchIndexes.join(", ")}`);
+    }
+
+    return { value: allCases };
+  } catch (error) {
+    console.error("❌ Batch processing failed:", error);
+
+    // Handle different types of errors
+    if (error.name === "AbortError") {
+      throw new Error(
+        "TIMEOUT_ERROR: Request timed out during batch processing"
+      );
+    }
+
+    if (error.message.includes("CORS") || error.message.includes("fetch")) {
+      console.error(
+        "CORS Error: Backend needs to allow frontend origin for batch requests."
+      );
+      throw new Error(
+        "CORS_ERROR: Backend CORS configuration required for batch processing"
+      );
+    }
+
+    throw error;
+  }
 };
 
-// Get latest cases for all regions (assuming we want the most recent date)
-export const getLatestCasesByRegion = async () => {
-  return await apiCall("/Cases?$expand=Region&$orderby=RecordedDate desc");
-};
+// // Get latest cases for all regions (assuming we want the most recent date)
+// export const getLatestCasesByRegion = async () => {
+//   return await apiCall("/Cases?$expand=Region&$orderby=RecordedDate desc");
+// };
 
-// Get cases for a specific country by region name
-export const getCasesByCountry = async (countryName) => {
-  return await apiCall(
-    `/Cases?$filter=Region/Name eq '${countryName}'&$expand=Region&$orderby=RecordedDate desc`
-  );
-};
+// // Get cases for a specific country by region name
+// export const getCasesByCountry = async (countryName) => {
+//   return await apiCall(
+//     `/Cases?$filter=Region/Name eq '${countryName}'&$expand=Region&$orderby=RecordedDate desc`
+//   );
+// };
 
-// Get cases for a specific date
-export const getCasesByDate = async (date) => {
-  return await apiCall(`/Cases?$filter=RecordedDate eq ${date}&$expand=Region`);
-};
+// // Get cases for a specific date
+// export const getCasesByDate = async (date) => {
+//   return await apiCall(`/Cases?$filter=RecordedDate eq ${date}&$expand=Region`);
+// };
 
-// Get aggregated totals for all regions
-export const getGlobalTotals = async () => {
-  return await apiCall(
-    "/Cases?$apply=groupby((RecordedDate),aggregate(ConfirmedCases with sum as TotalConfirmed,RecoveredCases with sum as TotalRecovered,DeathCases with sum as TotalDeaths))&$orderby=RecordedDate desc&$top=1"
-  );
-};
+// // Get aggregated totals for all regions
+// export const getGlobalTotals = async () => {
+//   return await apiCall(
+//     "/Cases?$apply=groupby((RecordedDate),aggregate(ConfirmedCases with sum as TotalConfirmed,RecoveredCases with sum as TotalRecovered,DeathCases with sum as TotalDeaths))&$orderby=RecordedDate desc&$top=1"
+//   );
+// };
 
-// Get all regions
-export const getAllRegions = async () => {
-  return await apiCall(
-    "/Cases?$select=Region/Name,Region/Id&$expand=Region&$apply=groupby((Region/Name,Region/Id))"
-  );
-};
+// // Get all regions
+// export const getAllRegions = async () => {
+//   return await apiCall(
+//     "/cases?$select=Region/Name,Region/Id&$expand=Region&$apply=groupby((Region/Name,Region/Id))"
+//   );
+// };
 
 // Transform backend data to frontend format
 export const transformCasesToCovidData = (cases) => {
-  console.log("Transforming cases data:", cases);
-
-  // Ensure cases is an array
-  if (!Array.isArray(cases)) {
-    console.error("Cases data is not an array:", cases);
+  if (!cases || !cases.value || !Array.isArray(cases.value)) {
+    console.error("Invalid cases data structure:", cases);
     return [];
   }
+
+  console.log("transformCasesToCovidData input:", {
+    totalCases: cases.value.length,
+    sampleCase: cases.value[0],
+  });
 
   // Group cases by region and get the latest data for each region
   const regionMap = new Map();
 
-  cases.forEach((caseItem) => {
+  cases.value.forEach((caseItem) => {
     const regionName = caseItem.Region?.Name;
     if (!regionName) {
       console.warn("Case item missing region name:", caseItem);
@@ -130,30 +312,22 @@ export const transformCasesToCovidData = (cases) => {
     }
   });
 
-  console.log("Regions found:", Array.from(regionMap.keys()));
-
   // Transform to frontend format
   const transformedData = Array.from(regionMap.values()).map((caseItem) => {
     const region = caseItem.Region;
     const confirmed = caseItem.ConfirmedCases || 0;
     const recovered = caseItem.RecoveredCases || 0;
     const deaths = caseItem.DeathCases || 0;
-    const active = confirmed - recovered - deaths;
+    const active = Math.max(0, confirmed - recovered - deaths);
 
-    console.log(`Processing ${region.Name}:`, {
-      confirmed,
-      recovered,
-      deaths,
-      active: Math.max(0, active),
-    });
-
-    // Get country info mapping
+    // Enhanced country info mapping for better coverage
     const countryMapping = {
       US: { iso2: "US", iso3: "USA" },
       "United States": { iso2: "US", iso3: "USA" },
       India: { iso2: "IN", iso3: "IND" },
       Brazil: { iso2: "BR", iso3: "BRA" },
       "United Kingdom": { iso2: "GB", iso3: "GBR" },
+      UK: { iso2: "GB", iso3: "GBR" },
       Russia: { iso2: "RU", iso3: "RUS" },
       France: { iso2: "FR", iso3: "FRA" },
       Turkey: { iso2: "TR", iso3: "TUR" },
@@ -171,6 +345,11 @@ export const transformCasesToCovidData = (cases) => {
       Netherlands: { iso2: "NL", iso3: "NLD" },
       Indonesia: { iso2: "ID", iso3: "IDN" },
       Chile: { iso2: "CL", iso3: "CHL" },
+      Canada: { iso2: "CA", iso3: "CAN" },
+      Australia: { iso2: "AU", iso3: "AUS" },
+      Japan: { iso2: "JP", iso3: "JPN" },
+      "South Korea": { iso2: "KR", iso3: "KOR" },
+      China: { iso2: "CN", iso3: "CHN" },
     };
 
     const countryInfo = countryMapping[region.Name] || {
@@ -190,14 +369,20 @@ export const transformCasesToCovidData = (cases) => {
     };
   });
 
+  console.log("transformCasesToCovidData output:", {
+    totalTransformed: transformedData.length,
+    sampleCountries: transformedData.slice(0, 5).map((c) => ({
+      country: c.country,
+      confirmed: c.confirmed,
+      active: c.active,
+    })),
+  });
+
   // Calculate percentages
   const totalConfirmed = transformedData.reduce(
     (sum, item) => sum + item.confirmed,
     0
   );
-
-  console.log("Total confirmed cases:", totalConfirmed);
-
   transformedData.forEach((item) => {
     item.percent =
       totalConfirmed > 0
@@ -205,7 +390,6 @@ export const transformCasesToCovidData = (cases) => {
         : 0;
   });
 
-  console.log("Transformed data sample:", transformedData.slice(0, 3));
   return transformedData;
 };
 
@@ -217,16 +401,8 @@ export const getDailyIncreaseByCountry = async (countryName, days = 7) => {
     .split("T")[0];
 
   const cases = await apiCall(
-    `/Cases?$filter=Region/Name eq '${countryName}' and RecordedDate ge ${startDate} and RecordedDate le ${endDate}&$expand=Region&$orderby=RecordedDate asc`
+    `/cases?$filter=Region/Name eq '${countryName}' and RecordedDate ge ${startDate} and RecordedDate le ${endDate}&$expand=Region&$orderby=RecordedDate asc`
   );
-
-  console.log(`Daily increase data for ${countryName}:`, cases);
-
-  // Ensure cases is an array
-  if (!Array.isArray(cases)) {
-    console.error("Cases data is not an array for daily increase:", cases);
-    return [];
-  }
 
   // Calculate daily increases
   const dailyIncreases = [];

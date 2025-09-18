@@ -1,63 +1,18 @@
 import {
   getAllCases,
   transformCasesToCovidData,
-  handleApiError,
 } from "../services/apiService.js";
 import { API_CONFIG } from "../config/api.js";
 
-// Fallback static data in case API fails
-const fallbackCovidData = [
-  {
-    country: "US",
-    countryInfo: {
-      iso2: "US",
-      iso3: "USA",
-    },
-    confirmed: 52380854,
-    active: 10000000,
-    recovered: 41000000,
-    deaths: 1380854,
-    dailyIncrease: 150000,
-    percent: 19,
-  },
-  {
-    country: "India",
-    countryInfo: {
-      iso2: "IN",
-      iso3: "IND",
-    },
-    confirmed: 34751332,
-    active: 5000000,
-    recovered: 29000000,
-    deaths: 751332,
-    dailyIncrease: 95000,
-    percent: 12,
-  },
-  {
-    country: "Brazil",
-    countryInfo: {
-      iso2: "BR",
-      iso3: "BRA",
-    },
-    confirmed: 22451205,
-    active: 3000000,
-    recovered: 18900000,
-    deaths: 551205,
-    dailyIncrease: 65000,
-    percent: 8,
-  },
-  // ... rest of fallback data truncated for brevity
-];
+// No fallback data - application will rely entirely on API
 
 // Cache for COVID data
 let cachedCovidData = null;
 let lastFetchTime = null;
 const CACHE_DURATION = API_CONFIG.CACHE_DURATION;
 
-// Function to fetch COVID data from API
+// Function to fetch COVID data from API using batch processing
 export const fetchCovidData = async () => {
-  console.log("🔄 Starting to fetch COVID data...");
-
   try {
     // Check cache first
     if (
@@ -65,105 +20,165 @@ export const fetchCovidData = async () => {
       lastFetchTime &&
       Date.now() - lastFetchTime < CACHE_DURATION
     ) {
-      console.log("✅ Using cached COVID data");
+      console.log("📦 Using cached data");
       return cachedCovidData;
     }
 
-    console.log("📡 Fetching fresh data from API...");
-    // Fetch from API
+    console.log("🌐 Starting batch fetch from API...");
+    const startTime = Date.now();
+
+    // Fetch from API using batch processing
     const cases = await getAllCases();
-    console.log("📥 Raw cases data received:", cases);
+
+    const fetchTime = Date.now() - startTime;
+    console.log(`⏱️ Batch fetch completed in ${fetchTime}ms`);
 
     const transformedData = transformCasesToCovidData(cases);
-    console.log("🔄 Data transformed:", transformedData);
 
     // Update cache
     cachedCovidData = transformedData;
     lastFetchTime = Date.now();
 
-    console.log("✅ COVID data successfully fetched and cached");
+    console.log(
+      "✅ API batch data processed successfully:",
+      transformedData.length,
+      "countries"
+    );
     return transformedData;
   } catch (error) {
-    console.error("❌ Failed to fetch COVID data:", error);
+    console.error("❌ Failed to fetch COVID data from API:", error);
 
-    // Handle specific errors
+    // Handle specific errors - but don't return fallback data
     if (error.message.includes("CORS_ERROR")) {
       console.warn(
-        "⚠️ CORS Error: Backend needs CORS configuration. Using fallback data."
+        "⚠️ CORS Error: Backend needs CORS configuration for batch requests."
       );
-      throw new Error("CORS configuration required on backend server");
+      throw new Error(
+        "CORS_ERROR: Backend CORS configuration required for batch processing"
+      );
     }
 
     if (error.message.includes("MOCK_DATA_ENABLED")) {
-      console.log("🔧 Mock data mode enabled - using fallback data");
-      return fallbackCovidData;
+      console.log("🔧 Mock data mode enabled - API disabled");
+      throw new Error("MOCK_DATA_ENABLED: API is disabled in configuration");
     }
 
     if (error.message.includes("TIMEOUT_ERROR")) {
       console.warn(
-        "⚠️ Request timeout: Backend server may be slow or down. Using fallback data."
+        "⚠️ Request timeout: Backend server may be slow or down during batch processing."
       );
-      throw new Error("Backend server timeout");
+      throw new Error(
+        "TIMEOUT_ERROR: Backend server timeout during batch processing"
+      );
     }
 
-    handleApiError(error);
-
-    // Return fallback data if API fails
-    console.log("🔄 Falling back to static data");
-    return fallbackCovidData;
+    // Re-throw the original error instead of returning fallback data
+    throw error;
   }
 };
 
-// Export a function that returns the data (for backward compatibility)
+// Export a function that returns the cached data (API only)
 export const getCovidData = () => {
-  if (cachedCovidData) {
+  if (cachedCovidData && cachedCovidData.length > 0) {
     return cachedCovidData;
   }
-  // Return fallback data synchronously if no cached data
-  return fallbackCovidData;
+  // Return empty array if no cached data from API
+  console.warn(
+    "⚠️ No COVID data available. Make sure to call fetchCovidData() first."
+  );
+  return [];
 };
 
-// Static export for backward compatibility (will be replaced by API data when available)
-export const covidData = fallbackCovidData;
+// Remove static export - data will come only from API
+// export const covidData = []; // Removed: no longer using static data
 
-// Generate the treemap format data
-export const getTreemapData = (dataType, data = null) => {
-  // Use provided data or fallback to cached/static data
-  const currentData = data || getCovidData();
+// Generate the treemap format data (API data only)
+export const getTreemapData = (dataType, providedData = null) => {
+  // Use provided data or get from cache
+  const currentData = providedData || getCovidData();
 
-  if (!dataType || !currentData || !Array.isArray(currentData)) {
+  if (
+    !dataType ||
+    !currentData ||
+    !Array.isArray(currentData) ||
+    currentData.length === 0
+  ) {
+    console.warn("⚠️ No data available for treemap. API data required.");
     return [];
   }
 
-  // Dynamically import the color utils
+  console.log("getTreemapData input:", {
+    dataType,
+    dataLength: currentData.length,
+    sampleData: currentData.slice(0, 3).map((c) => ({
+      country: c.country,
+      [dataType]: c[dataType],
+      percent: c.percent,
+    })),
+  });
+
+  // Dynamically import the color utils with better error handling
   let getTreemapColor;
   try {
     getTreemapColor = require("../utils/colorUtils").getTreemapColor;
   } catch (e) {
+    console.warn("Could not load colorUtils, using fallback colors");
     // Fallback in case of import error
     getTreemapColor = (country) => {
       const colors = {
         US: "#0047AB",
         India: "#FF5733",
         Brazil: "#00A36C",
+        "United Kingdom": "#FF6B6B",
+        Russia: "#4ECDC4",
+        France: "#45B7D1",
+        Germany: "#F39C12",
+        Italy: "#9B59B6",
+        Spain: "#E74C3C",
+        Turkey: "#1ABC9C",
         default: "#3498DB",
       };
       return colors[country] || colors.default;
     };
   }
 
-  return currentData
-    .filter((country) => country && typeof country === "object")
+  const result = currentData
+    .filter((country) => {
+      // More strict filtering
+      return (
+        country &&
+        typeof country === "object" &&
+        country.country &&
+        country[dataType] !== undefined &&
+        country[dataType] !== null &&
+        country[dataType] > 0
+      ); // Only include countries with data > 0
+    })
     .map((country) => {
       const countryName = country.country || "Unknown";
+      const size = country[dataType] || 0;
+      const percentage = country.percent || 0;
+
       return {
         name: countryName,
-        size: country[dataType] || 0,
-        percentage: country.percent || 0,
+        size: size,
+        percentage: percentage,
         color: getTreemapColor(countryName), // Use treemap-specific colors
         fill: getTreemapColor(countryName), // Adding fill for recharts
       };
-    });
+    })
+    .sort((a, b) => b.size - a.size); // Sort by size descending
+
+  console.log("getTreemapData output:", {
+    resultLength: result.length,
+    top5: result.slice(0, 5).map((r) => ({
+      name: r.name,
+      size: r.size,
+      percentage: r.percentage,
+    })),
+  });
+
+  return result;
 };
 
 // Generate color based on percentage with shades of blue (for world map)
@@ -178,15 +193,21 @@ export const getColorByPercentage = (percent) => {
   return "#E6F7FF"; // Lightest blue for very low or no values (<1%)
 };
 
-// Get a country's color for the map based on dataType
-export const getCountryColor = (countryCode, dataType, data = null) => {
-  // Use provided data or fallback to cached/static data
-  const currentData = data || getCovidData();
+// Get a country's color for the map based on dataType (API data only)
+export const getCountryColor = (countryCode, dataType, providedData = null) => {
+  // Use provided data or get from cache
+  const currentData = providedData || getCovidData();
 
-  // Hard-coded map for major countries to ensure proper coloring
+  if (!currentData || currentData.length === 0) {
+    console.warn(
+      "⚠️ No COVID data available for country coloring. API data required."
+    );
+    return "#F5F5F5"; // Default light gray when no data
+  }
+
+  // Enhanced country mapping for better API data support
   const directMapping = {
     USA: "US", // United States
-    USA: "US",
     GBR: "United Kingdom", // United Kingdom
     IND: "India", // India
     BRA: "Brazil", // Brazil
@@ -211,7 +232,7 @@ export const getCountryColor = (countryCode, dataType, data = null) => {
     }
   }
 
-  // Next try matching by ISO code
+  // Try matching by ISO code
   let country = currentData.find(
     (c) =>
       c.countryInfo &&
@@ -220,10 +241,7 @@ export const getCountryColor = (countryCode, dataType, data = null) => {
 
   // If no match by ISO code, try matching by name
   if (!country && countryCode) {
-    // Create a normalized version of the country code for name matching
     const normalizedCode = countryCode.toLowerCase();
-
-    // Country code to name mapping for common countries
     const codeNameMap = {
       usa: "US",
       gbr: "United Kingdom",
@@ -244,23 +262,6 @@ export const getCountryColor = (countryCode, dataType, data = null) => {
     }
   }
 
-  // Apply fixed colors for specific countries for testing
-  if (countryCode === "USA" || countryCode === "US" || countryCode === "840") {
-    return "#00205B"; // Dark blue for US
-  } else if (
-    countryCode === "IND" ||
-    countryCode === "IN" ||
-    countryCode === "356"
-  ) {
-    return "#00297A"; // For India
-  } else if (
-    countryCode === "BRA" ||
-    countryCode === "BR" ||
-    countryCode === "076"
-  ) {
-    return "#003399"; // For Brazil
-  }
-
   if (!country) {
     console.log(`No match for country code: ${countryCode}`);
     return "#F5F5F5"; // Default light gray for countries with no data
@@ -269,7 +270,6 @@ export const getCountryColor = (countryCode, dataType, data = null) => {
   console.log(
     `Found match for ${countryCode}: ${country.country}, percent: ${country.percent}`
   );
-  // Make sure the color is based on percentage data
   return getColorByPercentage(country.percent);
 };
 
@@ -279,18 +279,31 @@ export const formatNumber = (num) => {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-// Get total counts for each data type
-export const getTotals = (data = null) => {
-  // Use provided data or fallback to cached/static data
-  const currentData = data || getCovidData();
+// Get total counts for each data type (API data only)
+export const getTotals = (providedData = null) => {
+  // Use provided data or get from cache
+  const currentData = providedData || getCovidData();
+
+  if (!currentData || currentData.length === 0) {
+    console.warn(
+      "⚠️ No COVID data available for totals calculation. API data required."
+    );
+    return {
+      confirmed: 0,
+      active: 0,
+      recovered: 0,
+      deaths: 0,
+      dailyIncrease: 0,
+    };
+  }
 
   return currentData.reduce(
     (totals, country) => {
-      totals.confirmed += country.confirmed;
-      totals.active += country.active;
-      totals.recovered += country.recovered;
-      totals.deaths += country.deaths;
-      totals.dailyIncrease += country.dailyIncrease;
+      totals.confirmed += country.confirmed || 0;
+      totals.active += country.active || 0;
+      totals.recovered += country.recovered || 0;
+      totals.deaths += country.deaths || 0;
+      totals.dailyIncrease += country.dailyIncrease || 0;
       return totals;
     },
     {

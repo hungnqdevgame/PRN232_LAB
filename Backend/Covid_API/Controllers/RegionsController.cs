@@ -11,7 +11,7 @@ public class RegionsController : ODataController
         _dbContext = context;
     }
 
-    [EnableQuery(PageSize = 100, MaxTop = 250)]
+    [EnableQuery(PageSize = 1000, MaxTop = 2000)]
     public IQueryable<Region> Get()
     {
         return _dbContext.Regions;
