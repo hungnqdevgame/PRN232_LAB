@@ -3,11 +3,11 @@ import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 import { getTreemapData, formatNumber } from "../data/covidData";
 import { getTreemapColor } from "../utils/colorUtils";
 
-const TreemapChart = ({ dataType = "confirmed" }) => {
+const TreemapChart = ({ dataType = "confirmed", covidData = null }) => {
   const [tooltipContent, setTooltipContent] = useState(null);
 
   // Generate the data for the treemap based on the selected data type
-  const data = getTreemapData(dataType);
+  const data = getTreemapData(dataType, covidData);
 
   // Custom tooltip content
   const CustomTooltip = ({ active, payload }) => {
@@ -17,7 +17,9 @@ const TreemapChart = ({ dataType = "confirmed" }) => {
         <div className="treemap-tooltip">
           <p className="tooltip-country">{item.name || "Unknown"}</p>
           <p className="tooltip-value">{formatNumber(item.size || 0)}</p>
-          <p className="tooltip-percent">{item.percentage || 0}% of total cases</p>
+          <p className="tooltip-percent">
+            {item.percentage || 0}% of total cases
+          </p>
         </div>
       );
     }
