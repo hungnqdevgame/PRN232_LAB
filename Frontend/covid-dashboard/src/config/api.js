@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
   // Development settings
-  BASE_URL: "https://localhost:8080/odata",
+  BASE_URL: "http://localhost:7000/odata",
   USE_MOCK_DATA: false, // Set to true to use mock data instead of API
   ENABLE_CORS_PROXY: false, // Set to true to use CORS proxy in development
 

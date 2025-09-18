@@ -17,10 +17,6 @@ const apiCall = async (endpoint) => {
     const response = await fetch(url, {
       method: "GET",
       mode: "cors", // Explicitly enable CORS
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
       credentials: "omit", // Don't send credentials for CORS
       signal: controller.signal,
     });
@@ -43,7 +39,7 @@ const apiCall = async (endpoint) => {
 
     if (error.message.includes("CORS") || error.message.includes("fetch")) {
       console.error(
-        "CORS Error: Backend needs to allow frontend origin. Please configure CORS on the backend server."
+        "CORS Error: Backend needs to allow frontend origin. Please configure CORS on the backend server.",
       );
       throw new Error("CORS_ERROR: Backend CORS configuration required");
     }
@@ -75,6 +71,7 @@ export const getAllCases = async () => {
       signal: controller.signal,
     });
 
+    console.log(countResponse);
     clearTimeout(timeoutId);
 
     if (!countResponse.ok) {
@@ -95,7 +92,7 @@ export const getAllCases = async () => {
     const totalBatches = Math.ceil(totalCount / BATCH_SIZE);
 
     console.log(
-      `� Processing ${totalBatches} batches of ${BATCH_SIZE} records each with concurrent requests`
+      `� Processing ${totalBatches} batches of ${BATCH_SIZE} records each with concurrent requests`,
     );
 
     // Create batch fetch function
@@ -106,19 +103,19 @@ export const getAllCases = async () => {
       console.log(
         `📦 Starting batch ${
           batchIndex + 1
-        }/${totalBatches} (skip: ${skip}, top: ${top})`
+        }/${totalBatches} (skip: ${skip}, top: ${top})`,
       );
 
       try {
         const batchData = await apiCall(
-          `/Cases?$expand=Region&$skip=${skip}&$top=${top}&$orderby=Id`
+          `/Cases?$expand=Region&$skip=${skip}&$top=${top}&$orderby=Id`,
         );
 
         if (batchData && batchData.value && Array.isArray(batchData.value)) {
           console.log(
             `✅ Batch ${batchIndex + 1} completed: ${
               batchData.value.length
-            } records`
+            } records`,
           );
           return {
             batchIndex,
@@ -128,7 +125,7 @@ export const getAllCases = async () => {
         } else {
           console.warn(
             `⚠️ Batch ${batchIndex + 1} returned invalid data:`,
-            batchData
+            batchData,
           );
           return {
             batchIndex,
@@ -164,7 +161,7 @@ export const getAllCases = async () => {
       console.log(
         `🔄 Processing concurrent batch chunk: ${
           i + 1
-        }-${endIndex} of ${totalBatches}`
+        }-${endIndex} of ${totalBatches}`,
       );
 
       // Wait for all batches in current chunk to complete
@@ -182,7 +179,7 @@ export const getAllCases = async () => {
         } else {
           console.error(
             `❌ Promise rejected for batch ${i + index + 1}:`,
-            result.reason
+            result.reason,
           );
           results.push({
             batchIndex: i + index,
@@ -197,7 +194,7 @@ export const getAllCases = async () => {
       const completedBatches = Math.min(endIndex, totalBatches);
       const progress = Math.round((completedBatches / totalBatches) * 100);
       console.log(
-        `📈 Progress: ${completedBatches}/${totalBatches} batches completed (${progress}%) - ${allCases.length} records fetched`
+        `📈 Progress: ${completedBatches}/${totalBatches} batches completed (${progress}%) - ${allCases.length} records fetched`,
       );
 
       // Add small delay between chunks to be respectful to server
@@ -233,16 +230,16 @@ export const getAllCases = async () => {
     // Handle different types of errors
     if (error.name === "AbortError") {
       throw new Error(
-        "TIMEOUT_ERROR: Request timed out during batch processing"
+        "TIMEOUT_ERROR: Request timed out during batch processing",
       );
     }
 
     if (error.message.includes("CORS") || error.message.includes("fetch")) {
       console.error(
-        "CORS Error: Backend needs to allow frontend origin for batch requests."
+        "CORS Error: Backend needs to allow frontend origin for batch requests.",
       );
       throw new Error(
-        "CORS_ERROR: Backend CORS configuration required for batch processing"
+        "CORS_ERROR: Backend CORS configuration required for batch processing",
       );
     }
 
@@ -381,7 +378,7 @@ export const transformCasesToCovidData = (cases) => {
   // Calculate percentages
   const totalConfirmed = transformedData.reduce(
     (sum, item) => sum + item.confirmed,
-    0
+    0,
   );
   transformedData.forEach((item) => {
     item.percent =
@@ -401,7 +398,7 @@ export const getDailyIncreaseByCountry = async (countryName, days = 7) => {
     .split("T")[0];
 
   const cases = await apiCall(
-    `/cases?$filter=Region/Name eq '${countryName}' and RecordedDate ge ${startDate} and RecordedDate le ${endDate}&$expand=Region&$orderby=RecordedDate asc`
+    `/cases?$filter=Region/Name eq '${countryName}' and RecordedDate ge ${startDate} and RecordedDate le ${endDate}&$expand=Region&$orderby=RecordedDate asc`,
   );
 
   // Calculate daily increases

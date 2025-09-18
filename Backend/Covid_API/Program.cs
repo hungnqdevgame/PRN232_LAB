@@ -50,14 +50,14 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseCors();
-
 app.UseHttpsRedirection();
 
 app.UseRouting();
 
-app.MapControllers();
+app.UseCors();           // ✅ after UseRouting
 
-app.UseAuthorization();
+app.UseAuthorization();  // ✅ before MapControllers
+
+app.MapControllers();
 
 app.Run();
