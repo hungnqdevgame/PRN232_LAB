@@ -25,7 +25,7 @@ function App() {
         borderBottom: '1px solid #ddd' 
       }}>
         <h1 style={{ fontSize: '28px', color: '#333', margin: 0 }}>COVID-19 Dashboard</h1>
-        <h2 style={{ fontSize: '20px', color: '#555', marginTop: '5px', margin: '5px 0 0 0' }}># of Cases Worldwide</h2>
+       
       </header>
 
       <div className="tab-container" style={{ 
@@ -69,6 +69,75 @@ function App() {
         }}>
           <h3 style={{ marginBottom: '10px', textAlign: 'center', color: '#333', fontWeight: '600' }}>World Map Visualization</h3>
           <WorldMap dataType={activeTab} />
+        </div>
+
+        {/* Map Legend - Added below the map */}
+        <div className="map-legend-section" style={{ 
+          width: '100%', 
+          backgroundColor: 'white', 
+          borderRadius: '12px', 
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)', 
+          padding: '15px',
+          marginTop: '-15px'
+        }}>
+          <div className="map-legend" style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}>
+            <h4 style={{ 
+              margin: '0 0 15px 0', 
+              fontSize: '16px', 
+              fontWeight: '600',
+              color: '#333',
+              borderBottom: '1px solid #eee',
+              paddingBottom: '8px',
+              width: '100%',
+              textAlign: 'center'
+            }}>COVID-19 {activeTab === 'dailyIncrease' ? 'Daily Increase' : activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Legend</h4>
+            
+            <div className="legend-items" style={{ 
+              display: 'flex', 
+              flexWrap: 'wrap', 
+              justifyContent: 'center',
+              gap: '10px 20px',
+              width: '100%',
+              maxWidth: '800px'
+            }}>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#F5F5F5", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>No data/Very low (&lt; 1%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#99C2FF", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>Low (1-2%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#4D94FF", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>Low-Medium (2-3%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#0066CC", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>Medium (3-5%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#0047AB", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>Medium-High (5-8%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#003399", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>High (8-10%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#00297A", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>Very High (10-15%)</span>
+              </div>
+              <div className="legend-item" style={{ display: 'flex', alignItems: 'center', fontSize: '13px' }}>
+                <span className="color-box" style={{ background: "#00205B", width: '18px', height: '18px', display: 'inline-block', marginRight: '8px', border: '1px solid #ddd' }}></span>
+                <span>Critical (15%+)</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="treemap-section" style={{ 

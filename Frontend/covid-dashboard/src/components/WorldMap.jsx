@@ -29,6 +29,12 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
   // Simple color mapping function
   const getCountryColor = (countryId) => {
     const country = covidData.find(c => c.countryInfo.iso3 === countryId);
+    
+    // Log for debugging color selection
+    if (['USA', 'IND', 'BRA', 'RUS', 'GBR', 'FRA', 'DEU'].includes(countryId)) {
+      console.log(`Color lookup for ${countryId}:`, country ? `Found - ${country.percent}%` : "Not found");
+    }
+    
     if (!country) return "#F5F5F5"; // Default light gray for no data
     
     const value = country.percent;
@@ -49,25 +55,53 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
     const countryName = geo.properties?.NAME || geo.properties?.name || 
                        geo.properties?.ADMIN || geo.properties?.admin || "Unknown";
     
+    // Log all possible properties for debugging
+    console.log(`Mouse enter - Country: ${countryName}, ID: ${countryId}`);
+    console.log(`Geo Properties:`, geo.properties);
+    
+    // Try to find country data with exact ISO3 match
     const countryData = covidData.find(c => c.countryInfo.iso3 === countryId);
+    
+    // Log what we found or didn't find
+    console.log(`Found data for ${countryName}:`, countryData ? "Yes" : "No");
+    
+    // Also try alternate ways of finding the country
+    const altCountryData = covidData.find(c => 
+      c.country === countryName || 
+      c.countryInfo.iso2 === countryId.substring(0, 2)
+    );
+    
+    if (!countryData && altCountryData) {
+      console.log(`Found alternate data match for ${countryName}:`, altCountryData);
+    }
+    
+    // Use the best data we have
+    const bestData = countryData || altCountryData;
     
     let tooltipText = countryName;
     
-    if (countryData) {
-      tooltipText = `${countryData.country || countryName}: ${countryData.percent}%`;
+    if (bestData) {
+      console.log("Using data for tooltip:", bestData);
       
-      if (dataType === 'confirmed') {
-        tooltipText += `\nConfirmed: ${countryData.confirmed.toLocaleString()}`;
-      } else if (dataType === 'active') {
-        tooltipText += `\nActive: ${countryData.active.toLocaleString()}`;
+      // Chỉ hiển thị tên quốc gia và % - không có "COVID %"
+      tooltipText = bestData.country || countryName;
+      tooltipText += "\n" + bestData.percent + "%";
+      
+      // Chỉ giữ lại active, recovered, deaths - bỏ confirmed và daily increase
+      if (dataType === 'active') {
+        tooltipText += "\nActive: " + bestData.active.toLocaleString();
       } else if (dataType === 'recovered') {
-        tooltipText += `\nRecovered: ${countryData.recovered.toLocaleString()}`;
+        tooltipText += "\nRecovered: " + bestData.recovered.toLocaleString();
       } else if (dataType === 'deaths') {
-        tooltipText += `\nDeaths: ${countryData.deaths.toLocaleString()}`;
+        tooltipText += "\nDeaths: " + bestData.deaths.toLocaleString();
       }
-      
-      tooltipText += `\nDaily Increase: ${countryData.dailyIncrease.toLocaleString()}`;
+    } else {
+      tooltipText += "\nNo data available";
+      console.log(`No data found for ${countryName} (${countryId})`);
     }
+    
+    // Log to console for debugging
+    console.log("Final tooltip text:", tooltipText);
       
     setTooltipContent(tooltipText);
     setTooltipPosition({ x: e.clientX, y: e.clientY });
@@ -75,11 +109,22 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
   };
 
   const handleMouseLeave = () => {
+    console.log("Mouse leaving, hiding tooltip");
     setShowTooltip(false);
   };
 
   return (
-    <div className="world-map-container">
+    <div 
+      className="world-map-container" 
+      style={{ 
+        userSelect: 'none',
+        touchAction: 'none',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+      onDragStart={(e) => e.preventDefault()}
+      onMouseDown={(e) => e.preventDefault()}
+    >
       {isLoading && (
         <div style={{
           position: 'absolute',
@@ -106,10 +151,11 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
           scale: 160,
           center: [0, 0]
         }}
+        onMouseDown={(e) => e.preventDefault()}
+        onMouseMove={(e) => e.preventDefault()}
       >
-        <ZoomableGroup zoom={1.0}>
-          <Geographies geography={geoUrl}>
-            {({ geographies, error }) => {
+        <Geographies geography={geoUrl}>
+          {({ geographies, error }) => {
               if (error) {
                 console.error('Error loading geographies:', error);
                 return (
@@ -137,10 +183,16 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
                 
                 const countryId = geo.properties.ISO_A3 || geo.properties.iso_a3 || geo.id || "";
                 const countryName = geo.properties.NAME || geo.properties.name || "Unknown";
+                
+                // Log all properties for debugging
+                if (['USA', 'IND', 'BRA', 'RUS', 'GBR', 'FRA', 'DEU'].includes(countryId)) {
+                  console.log(`Country Properties for ${countryName}:`, geo.properties);
+                }
+                
                 const fillColor = getCountryColor(countryId);
                 
                 // Debug logging for key countries
-                if (['USA', 'IND', 'BRA', 'RUS'].includes(countryId)) {
+                if (['USA', 'IND', 'BRA', 'RUS', 'GBR', 'FRA', 'DEU'].includes(countryId)) {
                   console.log(`Rendering ${countryName} (${countryId}) with color ${fillColor}`);
                   console.log(`Country data:`, covidData.find(c => c.countryInfo.iso3 === countryId));
                 }
@@ -152,8 +204,24 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
                     fill={fillColor}
                     stroke="#FFFFFF"
                     strokeWidth={0.5}
-                    onMouseEnter={(e) => handleMouseEnter(geo, e)}
-                    onMouseLeave={handleMouseLeave}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log("CLICKED:", countryName, countryId, covidData.find(c => c.countryInfo.iso3 === countryId));
+                    }}
+                    onMouseEnter={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      const countryData = covidData.find(c => c.countryInfo.iso3 === countryId);
+                      console.log("Direct country data in event:", countryData);
+                      handleMouseEnter(geo, e);
+                    }}
+                    onMouseLeave={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleMouseLeave();
+                    }}
+                    onMouseDown={(e) => e.preventDefault()} // Prevent mouse dragging
+                    onMouseMove={(e) => e.preventDefault()} // Prevent mouse dragging
                     style={{
                       default: {
                         fill: fillColor,
@@ -176,70 +244,35 @@ const WorldMap = ({ dataType = 'confirmed' }) => {
               });
             }}
           </Geographies>
-        </ZoomableGroup>
       </ComposableMap>
       
       {/* Tooltip */}
-      {showTooltip && (
+      {showTooltip && tooltipContent && (
         <div 
           className="map-tooltip" 
           style={{
             position: 'fixed',
             left: tooltipPosition.x + 15,
             top: tooltipPosition.y + 15,
-            background: 'rgba(0, 0, 0, 0.8)',
-            color: 'white',
-            padding: '5px 10px',
-            borderRadius: '4px',
+            background: 'rgba(255, 255, 255, 0.9)',
+            color: '#333',
+            padding: '10px 14px',
+            borderRadius: '6px',
             fontSize: '14px',
-            fontWeight: 'bold',
+            fontWeight: '500',
             pointerEvents: 'none',
-            zIndex: 1000,
-            boxShadow: '0px 3px 8px rgba(0,0,0,0.3)'
+            zIndex: 99999,
+            boxShadow: '0px 2px 8px rgba(0,0,0,0.15)',
+            whiteSpace: 'pre-line',
+            lineHeight: '1.5',
+            minWidth: '150px',
+            border: '1px solid rgba(0,0,0,0.1)',
+            backdropFilter: 'blur(2px)'
           }}
         >
           {tooltipContent}
         </div>
       )}
-      
-      {/* Legend */}
-      <div className="map-legend">
-        <h4>COVID-19 {dataType.charAt(0).toUpperCase() + dataType.slice(1)} Cases</h4>
-        <div className="legend-items">
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#F5F5F5" }}></span>
-            <span>No data/Very low (&lt; 1%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#99C2FF" }}></span>
-            <span>Low (1-2%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#4D94FF" }}></span>
-            <span>Low-Medium (2-3%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#0066CC" }}></span>
-            <span>Medium (3-5%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#0047AB" }}></span>
-            <span>Medium-High (5-8%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#003399" }}></span>
-            <span>High (8-10%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#00297A" }}></span>
-            <span>Very High (10-15%)</span>
-          </div>
-          <div className="legend-item">
-            <span className="color-box" style={{ background: "#00205B" }}></span>
-            <span>Critical (15%+)</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
