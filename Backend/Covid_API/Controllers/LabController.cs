@@ -9,18 +9,25 @@ namespace Covid_API.Controllers
     [ApiController]
     public class LabController : ODataController
     {
-        private readonly PRN232Context dbContext;
+        private PRN232Context _dbContext { get; }
 
-        public LabController()
+        public LabController(PRN232Context context)
         {
-            dbContext = new PRN232Context();
+            _dbContext = context;
         }
 
-        [HttpGet]
-        [EnableQuery]
-        public IQueryable<Case> Get()
+        [HttpGet("countries")]
+        [EnableQuery(PageSize = 100, MaxTop = 250)]
+        public IQueryable<Region> Get()
         {
-            return dbContext.Cases.ToList().AsQueryable();
+            return _dbContext.Regions;
+        }
+
+        [HttpGet("cases")]
+        [EnableQuery(PageSize = 100, MaxTop = 250)]
+        public IQueryable<Case> GetCases()
+        {
+            return _dbContext.Cases;
         }
     }
 }
