@@ -23,25 +23,21 @@ builder.Services.AddDbContext<PRN232Context>(option =>
     option.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
-builder.Services.AddControllers();
-builder.Services.AddOpenApi();
-builder.Services.AddDbContext<Covid_API.Models.PRN232Context>();
-
 builder.Services.AddControllers().AddOData(
     options => options.Select().Filter().OrderBy().Expand().Count().SetMaxTop(100).AddRouteComponents(
         "odata",
         edmModel));
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "ODataASPNetCoreDemo", Version = "v1" });
 });
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
@@ -50,12 +46,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-
 app.UseCors();
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
-app.MapControllers();
-
+app.UseRouting();
+app.UseEndpoints(endpoints => endpoints.MapControllers());
 app.Run();
