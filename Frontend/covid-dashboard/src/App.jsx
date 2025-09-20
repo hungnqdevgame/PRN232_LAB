@@ -4,12 +4,14 @@ import TreemapChart from "./components/TreemapChart";
 import TabNavigation from "./components/TabNavigation";
 import { getTotals, formatNumber, fetchCovidData } from "./data/covidData";
 import "./App.css";
+import DateSelector from "./components/DateSelector";
 
 function App() {
   const [activeTab, setActiveTab] = useState("confirmed");
   const [covidData, setCovidData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedDate, setSelectedDate] = useState("2021-03-01");
 
   // Fetch COVID data on component mount
   useEffect(() => {
@@ -18,53 +20,57 @@ function App() {
         setLoading(true);
         setError(null);
         console.log("🔄 Loading COVID data from API...");
-        const data = await fetchCovidData();
+        const data = await fetchCovidData(selectedDate);
         setCovidData(data);
         console.log(
           "✅ COVID data loaded successfully:",
           data.length,
-          "countries"
+          "countries",
         );
       } catch (err) {
         console.error("❌ Failed to load COVID data from API:", err);
-
         // Set specific error messages based on error type
         if (err.message.includes("CORS_ERROR")) {
           setError(
-            "Backend server needs CORS configuration. Please check server settings."
+            "Backend server needs CORS configuration. Please check server settings.",
           );
         } else if (err.message.includes("TIMEOUT_ERROR")) {
           setError(
-            "Backend server is not responding. Please check if the server is running."
+            "Backend server is not responding. Please check if the server is running.",
           );
         } else if (err.message.includes("MOCK_DATA_ENABLED")) {
           setError("API is disabled in configuration. Please enable the API.");
         } else {
           setError(`API Error: ${err.message}. Please check backend server.`);
         }
-
         // Set empty data when API fails (no fallback)
         setCovidData([]);
       } finally {
         setLoading(false);
       }
     };
-
     loadCovidData();
-
     // Auto refresh every 5 minutes when API is working
-    const refreshInterval = setInterval(() => {
-      if (!error) {
-        console.log("🔄 Auto-refreshing COVID data...");
-        loadCovidData();
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-
+    const refreshInterval = setInterval(
+      () => {
+        if (!error) {
+          console.log("🔄 Auto-refreshing COVID data...");
+          loadCovidData();
+        }
+      },
+      5 * 60 * 1000,
+    ); // 5 minutes
     return () => clearInterval(refreshInterval);
-  }, [error]);
+  }, [error, selectedDate]);
 
   const totals = getTotals(covidData);
 
+  function updateSelectedDate(date) {
+    console.debug("Updating to new date");
+    console.debug(date);
+    setSelectedDate(date);
+    handleRefresh();
+  }
   // Manual refresh function for users
   const handleRefresh = async () => {
     console.log("🔄 Manual refresh triggered");
@@ -72,24 +78,24 @@ function App() {
     setError(null);
 
     try {
-      const data = await fetchCovidData();
+      const data = await fetchCovidData(selectedDate ?? "2020-03-01");
       setCovidData(data);
       console.log("✅ Data refreshed successfully");
     } catch (err) {
       console.error("❌ Manual refresh failed:", err);
       if (err.message.includes("CORS_ERROR")) {
         setError(
-          "Backend server needs CORS configuration. Please check server settings."
+          "Backend server needs CORS configuration. Please check server settings.",
         );
       } else if (err.message.includes("TIMEOUT_ERROR")) {
         setError(
-          "Backend server is not responding. Please check if the server is running."
+          "Backend server is not responding. Please check if the server is running.",
         );
       } else if (err.message.includes("MOCK_DATA_ENABLED")) {
         setError("API is disabled in configuration. Please enable the API.");
       } else {
         setError(
-          `Refresh failed: ${err.message}. Please check backend server.`
+          `Refresh failed: ${err.message}. Please check backend server.`,
         );
       }
       // Keep current data on refresh failure
@@ -463,6 +469,11 @@ function App() {
           </p>
         </div>
       </div>
+
+      <DateSelector
+        onDateChange={(date) => updateSelectedDate(date)}
+        currentDate={selectedDate}
+      />
 
       <div
         className="dashboard-container"

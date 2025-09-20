@@ -1,5 +1,6 @@
 import {
   getAllCases,
+  getCasesByDate,
   transformCasesToCovidData,
 } from "../services/apiService.js";
 import { API_CONFIG } from "../config/api.js";
@@ -12,7 +13,7 @@ let lastFetchTime = null;
 const CACHE_DURATION = API_CONFIG.CACHE_DURATION;
 
 // Function to fetch COVID data from API using batch processing
-export const fetchCovidData = async () => {
+export const fetchCovidData = async (date) => {
   try {
     // Check cache first
     if (
@@ -28,7 +29,7 @@ export const fetchCovidData = async () => {
     const startTime = Date.now();
 
     // Fetch from API using batch processing
-    const cases = await getAllCases();
+    const cases = await getCasesByDate(date);
 
     const fetchTime = Date.now() - startTime;
     console.log(`⏱️ Batch fetch completed in ${fetchTime}ms`);
@@ -42,7 +43,7 @@ export const fetchCovidData = async () => {
     console.log(
       "✅ API batch data processed successfully:",
       transformedData.length,
-      "countries"
+      "countries",
     );
     return transformedData;
   } catch (error) {
@@ -51,10 +52,10 @@ export const fetchCovidData = async () => {
     // Handle specific errors - but don't return fallback data
     if (error.message.includes("CORS_ERROR")) {
       console.warn(
-        "⚠️ CORS Error: Backend needs CORS configuration for batch requests."
+        "⚠️ CORS Error: Backend needs CORS configuration for batch requests.",
       );
       throw new Error(
-        "CORS_ERROR: Backend CORS configuration required for batch processing"
+        "CORS_ERROR: Backend CORS configuration required for batch processing",
       );
     }
 
@@ -65,10 +66,10 @@ export const fetchCovidData = async () => {
 
     if (error.message.includes("TIMEOUT_ERROR")) {
       console.warn(
-        "⚠️ Request timeout: Backend server may be slow or down during batch processing."
+        "⚠️ Request timeout: Backend server may be slow or down during batch processing.",
       );
       throw new Error(
-        "TIMEOUT_ERROR: Backend server timeout during batch processing"
+        "TIMEOUT_ERROR: Backend server timeout during batch processing",
       );
     }
 
@@ -84,7 +85,7 @@ export const getCovidData = () => {
   }
   // Return empty array if no cached data from API
   console.warn(
-    "⚠️ No COVID data available. Make sure to call fetchCovidData() first."
+    "⚠️ No COVID data available. Make sure to call fetchCovidData() first.",
   );
   return [];
 };
@@ -190,7 +191,8 @@ export const getColorByPercentage = (percent) => {
   if (percent >= 3) return "#0066CC"; // Medium blue for medium values (3-5%)
   if (percent >= 2) return "#4D94FF"; // Light blue for lower-medium values (2-3%)
   if (percent >= 1) return "#99C2FF"; // Very light blue for low values (1-2%)
-  return "#E6F7FF"; // Lightest blue for very low or no values (<1%)
+  if (percent > 0) return "#E6F7FF"; // Lightest blue for very low or no values (<1%)
+  return "#F5F5F5";
 };
 
 // Get a country's color for the map based on dataType (API data only)
@@ -200,7 +202,7 @@ export const getCountryColor = (countryCode, dataType, providedData = null) => {
 
   if (!currentData || currentData.length === 0) {
     console.warn(
-      "⚠️ No COVID data available for country coloring. API data required."
+      "⚠️ No COVID data available for country coloring. API data required.",
     );
     return "#F5F5F5"; // Default light gray when no data
   }
@@ -226,7 +228,7 @@ export const getCountryColor = (countryCode, dataType, providedData = null) => {
     const countryObj = currentData.find((c) => c.country === countryName);
     if (countryObj) {
       console.log(
-        `Direct match: ${countryCode} -> ${countryName}, percent: ${countryObj.percent}`
+        `Direct match: ${countryCode} -> ${countryName}, percent: ${countryObj.percent}`,
       );
       return getColorByPercentage(countryObj.percent);
     }
@@ -236,7 +238,8 @@ export const getCountryColor = (countryCode, dataType, providedData = null) => {
   let country = currentData.find(
     (c) =>
       c.countryInfo &&
-      (c.countryInfo.iso3 === countryCode || c.countryInfo.iso2 === countryCode)
+      (c.countryInfo.iso3 === countryCode ||
+        c.countryInfo.iso2 === countryCode),
   );
 
   // If no match by ISO code, try matching by name
@@ -268,7 +271,7 @@ export const getCountryColor = (countryCode, dataType, providedData = null) => {
   }
 
   console.log(
-    `Found match for ${countryCode}: ${country.country}, percent: ${country.percent}`
+    `Found match for ${countryCode}: ${country.country}, percent: ${country.percent}`,
   );
   return getColorByPercentage(country.percent);
 };
@@ -286,7 +289,7 @@ export const getTotals = (providedData = null) => {
 
   if (!currentData || currentData.length === 0) {
     console.warn(
-      "⚠️ No COVID data available for totals calculation. API data required."
+      "⚠️ No COVID data available for totals calculation. API data required.",
     );
     return {
       confirmed: 0,
@@ -312,6 +315,6 @@ export const getTotals = (providedData = null) => {
       recovered: 0,
       deaths: 0,
       dailyIncrease: 0,
-    }
+    },
   );
 };

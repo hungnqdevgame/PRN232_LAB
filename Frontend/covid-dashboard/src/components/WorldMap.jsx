@@ -17,19 +17,11 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [mapError, setMapError] = useState(null);
+  // console.debug(covidData);
 
   // Use provided data or get from cache (API only)
   const currentData =
     covidData && covidData.length > 0 ? covidData : getCovidData();
-
-  // Log data usage for debugging
-  useEffect(() => {
-    console.log("WorldMap data source:", {
-      providedData: covidData ? covidData.length : 0,
-      currentData: currentData.length,
-      dataType,
-    });
-  }, [covidData, currentData, dataType]);
 
   // Add loading state and error handling
   useEffect(() => {
@@ -51,14 +43,14 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
 
     // Strategy 1: Direct ISO3 match
     country = currentData.find(
-      (c) => c.countryInfo && c.countryInfo.iso3 === countryId
+      (c) => c.countryInfo && c.countryInfo.iso3 === countryId,
     );
 
     // Strategy 2: ISO2 match (first 2 chars of ISO3)
-    if (!country && countryId.length >= 2) {
+    if (!country) {
       const iso2 = countryId.substring(0, 2);
       country = currentData.find(
-        (c) => c.countryInfo && c.countryInfo.iso2 === iso2
+        (c) => c.countryInfo && c.countryInfo.iso2 === iso2,
       );
     }
 
@@ -94,14 +86,6 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
       }
     }
 
-    // Debug logging for major countries
-    if (["USA", "IND", "BRA", "RUS", "GBR", "FRA", "DEU"].includes(countryId)) {
-      console.log(
-        `Color lookup for ${countryId}:`,
-        country ? `Found - ${country.percent}%` : "Not found"
-      );
-    }
-
     if (!country) {
       return "#F5F5F5"; // Default light gray for no data
     }
@@ -121,7 +105,7 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
         "Unknown";
 
       setTooltipContent(
-        `${countryName}\nNo data available\nPlease connect to API`
+        `${countryName}\nNo data available\nPlease connect to API`,
       );
       setTooltipPosition({ x: e.clientX, y: e.clientY });
       setShowTooltip(true);
@@ -144,14 +128,18 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
 
     // Try to find country data with exact ISO3 match
     const countryData = currentData.find(
-      (c) => c.countryInfo && c.countryInfo.iso3 === countryId
+      (c) =>
+        c.countryInfo &&
+        (c.countryInfo.iso3 === countryId || c.countryInfo.iso2 === countryId),
     );
 
     // Also try alternate ways of finding the country
     const altCountryData = currentData.find(
       (c) =>
         c.country === countryName ||
-        (c.countryInfo && c.countryInfo.iso2 === countryId.substring(0, 2))
+        c.countryInfo.iso3 === countryName ||
+        c.countryInfo.iso2 === countryName ||
+        (c.countryInfo && c.countryInfo.iso2 === countryId.substring(0, 2)),
     );
 
     // Use the best data we have
@@ -278,8 +266,6 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
               );
             }
 
-            console.log("Loaded geographies count:", geographies.length);
-
             return geographies.map((geo) => {
               if (!geo || !geo.properties) {
                 console.warn("Invalid geography object:", geo);
@@ -291,35 +277,7 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
               const countryName =
                 geo.properties.NAME || geo.properties.name || "Unknown";
 
-              // Log all properties for debugging
-              if (
-                ["USA", "IND", "BRA", "RUS", "GBR", "FRA", "DEU"].includes(
-                  countryId
-                )
-              ) {
-                console.log(
-                  `Country Properties for ${countryName}:`,
-                  geo.properties
-                );
-              }
-
               const fillColor = getCountryColor(countryId);
-
-              // Debug logging for key countries
-              if (
-                ["USA", "IND", "BRA", "RUS", "GBR", "FRA", "DEU"].includes(
-                  countryId
-                )
-              ) {
-                console.log(
-                  `Rendering ${countryName} (${countryId}) with color ${fillColor}`
-                );
-                const countryDataForLog = currentData.find(
-                  (c) => c.countryInfo && c.countryInfo.iso3 === countryId
-                );
-                console.log(`Country data:`, countryDataForLog);
-              }
-
               return (
                 <Geography
                   key={geo.rsmKey || `geo-${countryId}-${Math.random()}`}
@@ -339,15 +297,6 @@ const WorldMap = ({ dataType = "confirmed", covidData = null }) => {
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    const countryDataForLog = currentData.find(
-                      (c) => c.countryInfo && c.countryInfo.iso3 === countryId
-                    );
-                    console.log(
-                      "CLICKED:",
-                      countryName,
-                      countryId,
-                      countryDataForLog
-                    );
                   }}
                   onMouseDown={(e) => e.preventDefault()} // Prevent mouse dragging
                   onMouseMove={(e) => e.preventDefault()} // Prevent mouse dragging
