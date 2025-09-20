@@ -15,16 +15,7 @@ const CACHE_DURATION = API_CONFIG.CACHE_DURATION;
 // Function to fetch COVID data from API using batch processing
 export const fetchCovidData = async (date) => {
   try {
-    // Check cache first
-    if (
-      cachedCovidData &&
-      lastFetchTime &&
-      Date.now() - lastFetchTime < CACHE_DURATION
-    ) {
-      console.log("📦 Using cached data");
-      return cachedCovidData;
-    }
-
+  
     console.log("🌐 Starting batch fetch from API...");
     const startTime = Date.now();
 
